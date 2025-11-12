@@ -1,0 +1,5 @@
+version: 1
+external_links:
+  documentation: "https://perso-ai.github.io/perso-interactive-ondevice-sdk-swift/"
+metadata:
+  authors: "ESTsoft"

@@ -1,0 +1,242 @@
+name: Deploy Multi-Platform DocC to GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., 1.0.0)'
+        required: true
+        type: string
+  release:
+    types: [published]
+
+env:
+  SCHEME_NAME: "PersoInteractiveOnDeviceSDK"
+  DOCC_OUTPUT_DIR: "docs"
+  DOCS_HOSTING_BASE_PATH: ${{ vars.DOCS_HOSTING_BASE_PATH }}
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: macos-26
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository  # 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Get version  # 배포할 버전 가져오기
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download iOS DocC Archive from Release  # Release에서 iOS DocC 아카이브 다운로드
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "📥 Downloading iOS DocC archive from version ${{ steps.version.outputs.VERSION }}"
+          gh release download "${{ steps.version.outputs.VERSION }}" \
+            --pattern "${{ env.SCHEME_NAME }}-iOS.doccarchive.zip" \
+            --dir . \
+            --clobber
+
+      - name: Download macOS DocC Archive from Release  # Release에서 macOS DocC 아카이브 다운로드
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "📥 Downloading macOS DocC archive from version ${{ steps.version.outputs.VERSION }}"
+          gh release download "${{ steps.version.outputs.VERSION }}" \
+            --pattern "${{ env.SCHEME_NAME }}-macOS.doccarchive.zip" \
+            --dir . \
+            --clobber
+
+      - name: Extract iOS DocC Archive  # iOS DocC 아카이브 압축 해제
+        run: |
+          unzip ${{ env.SCHEME_NAME }}-iOS.doccarchive.zip -d ios-docc
+
+      - name: Extract macOS DocC Archive  # macOS DocC 아카이브 압축 해제
+        run: |
+          unzip ${{ env.SCHEME_NAME }}-macOS.doccarchive.zip -d macos-docc
+
+      - name: Create output directories
+        run: mkdir -p ${{ env.DOCC_OUTPUT_DIR }}/{ios,macos}
+
+      - name: Determine hosting base paths
+        run: |
+          CUSTOM_BASE_PATH="${{ env.DOCS_HOSTING_BASE_PATH }}"
+
+          if [[ -n "$CUSTOM_BASE_PATH" ]]; then
+            BASE_PATH="$CUSTOM_BASE_PATH"
+          elif [[ "${{ github.event.repository.name }}" == "${{ github.repository_owner }}.github.io" ]]; then
+            BASE_PATH="/"
+          else
+            BASE_PATH="/${{ github.event.repository.name }}"
+          fi
+
+          echo "IOS_HOSTING_BASE_PATH=${BASE_PATH%/}/ios" >> $GITHUB_ENV
+          echo "MACOS_HOSTING_BASE_PATH=${BASE_PATH%/}/macos" >> $GITHUB_ENV
+
+      - name: Process iOS DocC for static hosting
+        run: |
+          $(xcrun --find docc) process-archive \
+            transform-for-static-hosting ios-docc/${{ env.SCHEME_NAME }}-iOS.doccarchive \
+            --output-path ${{ env.DOCC_OUTPUT_DIR }}/ios \
+            --hosting-base-path "$IOS_HOSTING_BASE_PATH"
+
+      - name: Process macOS DocC for static hosting
+        run: |
+          $(xcrun --find docc) process-archive \
+            transform-for-static-hosting macos-docc/${{ env.SCHEME_NAME }}-macOS.doccarchive \
+            --output-path ${{ env.DOCC_OUTPUT_DIR }}/macos \
+            --hosting-base-path "$MACOS_HOSTING_BASE_PATH"
+
+      - name: Create platform selection page
+        run: |
+          SCHEME_NAME_LOWER=$(echo "${{ env.SCHEME_NAME }}" | tr '[:upper:]' '[:lower:]')
+          cat > ${{ env.DOCC_OUTPUT_DIR }}/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>PersoInteractiveOnDeviceSDK Documentation</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f5f5f7;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px 20px;
+              }
+              .container {
+                max-width: 900px;
+                width: 100%;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 4rem;
+              }
+              h1 {
+                font-size: 3rem;
+                color: #1d1d1f;
+                margin-bottom: 1rem;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+              }
+              .subtitle {
+                font-size: 1.25rem;
+                color: #6e6e73;
+                font-weight: 400;
+                max-width: 600px;
+                margin: 0 auto;
+              }
+              .platform-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 24px;
+                margin-bottom: 3rem;
+              }
+              .platform-card {
+                background: white;
+                border-radius: 18px;
+                padding: 48px 32px;
+                text-decoration: none;
+                color: inherit;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+                border: 1px solid rgba(0,0,0,0.04);
+              }
+              .platform-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+              }
+              .platform-icon {
+                font-size: 4rem;
+                margin-bottom: 1.5rem;
+              }
+              .platform-name {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #1d1d1f;
+                margin-bottom: 0.5rem;
+              }
+              .platform-version {
+                font-size: 0.875rem;
+                color: #86868b;
+              }
+              .footer {
+                text-align: center;
+                color: #86868b;
+                font-size: 0.875rem;
+              }
+              @media (max-width: 768px) {
+                h1 { font-size: 2.25rem; }
+                .subtitle { font-size: 1.125rem; }
+                .platform-grid {
+                  grid-template-columns: 1fr;
+                  gap: 16px;
+                }
+                .platform-card {
+                  padding: 40px 24px;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Perso Interactive On-Device Swift SDK</h1>
+                <p class="subtitle">Select your platform to view documentation</p>
+              </div>
+
+              <div class="platform-grid">
+                <a href="./ios/documentation/SCHEME_NAME_LOWER/" class="platform-card">
+                  <div class="platform-icon">📱</div>
+                  <div class="platform-name">iOS / visionOS</div>
+                  <div class="platform-version">iOS 18.0+ • visionOS 2.0+</div>
+                </a>
+                <a href="./macos/documentation/SCHEME_NAME_LOWER/" class="platform-card">
+                  <div class="platform-icon">💻</div>
+                  <div class="platform-name">macOS</div>
+                  <div class="platform-version">macOS 15.0+</div>
+                </a>
+              </div>
+
+              <div class="footer">
+                <p>© 2025 ESTsoft</p>
+              </div>
+            </div>
+          </body>
+          </html>
+          EOF
+
+          sed -i '' "s/SCHEME_NAME_LOWER/${SCHEME_NAME_LOWER}/g" ${{ env.DOCC_OUTPUT_DIR }}/index.html
+
+      - name: Upload DocC artifact  # DocC 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.DOCC_OUTPUT_DIR }}
+
+      - name: Deploy to GitHub Pages  # GitHub Pages에 배포
+        id: deployment
+        uses: actions/deploy-pages@v4
