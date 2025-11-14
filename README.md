@@ -8,8 +8,8 @@
 
 # Perso Interactive On-Device SDK for Swift
 
-[![Swift](https://img.shields.io/badge/Swift-6.0+-orange?style=flat-square)](https://img.shields.io/badge/Swift-6.0+-Orange?style=flat-square)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS_18+_|_macOS_15+_|_visionOS_2+-Green?style=flat-square)](https://img.shields.io/badge/Platforms-iOS_18+_|_macOS_15+_|_visionOS-Green?style=flat-square)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fperso-ai%2Fperso-interactive-ondevice-sdk-swift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/perso-ai/perso-interactive-ondevice-sdk-swift)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fperso-ai%2Fperso-interactive-ondevice-sdk-swift%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/perso-ai/perso-interactive-ondevice-sdk-swift)
 
 <p align="center"> 📕 <a href="https://perso-ai.github.io/perso-interactive-ondevice-sdk-swift/">API Reference</a> &nbsp | &nbsp 💻 <a href="https://github.com/perso-ai/perso-interactive-ondevice-sample-swift">Sample Project</a>
 </div>
